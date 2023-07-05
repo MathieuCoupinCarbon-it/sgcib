@@ -9,6 +9,7 @@ import com.mcoupin.services.BankAccountServiceImpl;
 import com.mcoupin.services.UuidProvider;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -16,10 +17,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
-import java.time.Clock;
-import java.time.Instant;
-import java.time.LocalDateTime;
-import java.time.ZoneId;
+import java.time.*;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -42,6 +41,7 @@ public class BankAccountServiceImplTest {
     }
 
     @Test
+    @DisplayName("Performing deposit with an existing and provisioned account should add the deposit ")
     public void performDeposit_withAnExistingAndProvisionedAccount() throws AccountNotFoundException {
         // Arrange
         UUID accountId = UUID.fromString("5d9ccd9d-7050-47ab-adcf-e0fe89b913c5");
@@ -71,6 +71,7 @@ public class BankAccountServiceImplTest {
     }
 
     @Test
+    @DisplayName("Performing deposit with non existing account should throw AccountNotFoundException")
     public void performDeposit_withNonExistingAccount() throws AccountNotFoundException {
         // Arrange
         UUID accountId = UUID.fromString("5d9ccd9d-7050-47ab-adcf-e0fe89b913c5");
@@ -90,6 +91,7 @@ public class BankAccountServiceImplTest {
     }
 
     @Test
+    @DisplayName("Performing deposit with existing empty account should add the deposit")
     public void performDeposit_withAnExistingEmptyAccount() throws AccountNotFoundException {
         // Arrange
         UUID accountId = UUID.fromString("5d9ccd9d-7050-47ab-adcf-e0fe89b913c5");
@@ -115,6 +117,7 @@ public class BankAccountServiceImplTest {
     }
 
     @Test
+    @DisplayName("Performing withdrawal with sufficient balance should add the withdrawal")
     void performWithdrawal_withSufficientBalance() throws InsufficientBalanceException, AccountNotFoundException {
         // Arrange
         UUID accountId = UUID.fromString("5d9ccd9d-7050-47ab-adcf-e0fe89b913c5");
@@ -143,6 +146,7 @@ public class BankAccountServiceImplTest {
     }
 
     @Test
+    @DisplayName("Performing a withdrawal with insufficient balance should throw InsufficientBalanceException")
     void performWithdrawal_withInsufficientBalance() throws InsufficientBalanceException, AccountNotFoundException {
         // Arrange
         UUID accountId = UUID.fromString("5d9ccd9d-7050-47ab-adcf-e0fe89b913c5");
@@ -165,6 +169,7 @@ public class BankAccountServiceImplTest {
     }
 
     @Test
+    @DisplayName("performing a withdrawal with a non existing account should throw AccountNotFoundException")
     void performWithdrawal_withNonExistingAccount() throws InsufficientBalanceException, AccountNotFoundException {
         // Arrange
         UUID accountId = UUID.fromString("5d9ccd9d-7050-47ab-adcf-e0fe89b913c5");
@@ -178,6 +183,82 @@ public class BankAccountServiceImplTest {
 
         // Assert
         verify(operationRepository).getLastOperation(accountId);
+        verifyNoMoreInteractions(operationRepository);
+
+        verifyNoMoreInteractions(uuidProvider);
+    }
+
+    @Test
+    @DisplayName("should display correctly with no operations")
+    void displayHistory_withAnExistingAccountButNoOperations() throws AccountNotFoundException {
+        // Arrange
+        UUID accountId = UUID.fromString("5d9ccd9d-7050-47ab-adcf-e0fe89b913c5");
+
+        String expected = """
+                History for account 5d9ccd9d-7050-47ab-adcf-e0fe89b913c5
+                --------------------------------------------------------
+                Balance: 0
+                --------------------------------------------------------
+                """;
+
+        // Act
+        String actual = bankAccountService.displayHistory(accountId);
+
+        // Assert
+        Assertions.assertEquals(expected, actual);
+
+        verify(operationRepository).getOperations(accountId);
+        verifyNoMoreInteractions(operationRepository);
+
+        verifyNoMoreInteractions(uuidProvider);
+    }
+
+    @Test
+    @DisplayName("should throw AccountNotFoundException when trying to display with a non existing account")
+    void displayHistory_withNonExistingAccount() throws AccountNotFoundException {
+        // Arrange
+        UUID accountId = UUID.fromString("5d9ccd9d-7050-47ab-adcf-e0fe89b913c5");
+
+        when(operationRepository.getOperations(accountId)).thenThrow(new AccountNotFoundException());
+
+        // Act
+        Assertions.assertThrows(AccountNotFoundException.class, () -> bankAccountService.displayHistory(accountId));
+
+        // Assert
+        verify(operationRepository).getOperations(accountId);
+
+        verifyNoMoreInteractions(operationRepository);
+        verifyNoMoreInteractions(uuidProvider);
+    }
+
+    @Test
+    @DisplayName("Should display correctly with operations")
+    void displayHistory_withAnExistingAccountAndOperations() throws AccountNotFoundException {
+        // Arrange
+        UUID accountId = UUID.fromString("5d9ccd9d-7050-47ab-adcf-e0fe89b913c5");
+
+        String expected = """
+                History for account 5d9ccd9d-7050-47ab-adcf-e0fe89b913c5
+                --------------------------------------------------------
+                Balance: 1000.0
+                --------------------------------------------------------
+                04/07/2023 12:34 | -500.0       | WITHDRAWAL
+                03/07/2023 21:43 | 1500.0       | DEPOSIT
+                """;
+
+        Operation firstOperation = new Operation(UUID.randomUUID(), accountId, BigDecimal.valueOf(1500.0), BigDecimal.valueOf(1500.0), LocalDateTime.of(2023, Month.JULY, 03, 21, 43), OperationType.DEPOSIT);
+        Operation secondOperation = new Operation(UUID.randomUUID(), accountId, BigDecimal.valueOf(500.0), BigDecimal.valueOf(1000.0), LocalDateTime.of(2023, Month.JULY, 04, 12, 34), OperationType.WITHDRAWAL);
+
+        when(operationRepository.getOperations(accountId)).thenReturn(List.of(firstOperation, secondOperation));
+
+        // Act
+        String actual = bankAccountService.displayHistory(accountId);
+
+        // Assert
+        Assertions.assertEquals(expected, actual);
+
+
+        verify(operationRepository).getOperations(accountId);
         verifyNoMoreInteractions(operationRepository);
 
         verifyNoMoreInteractions(uuidProvider);

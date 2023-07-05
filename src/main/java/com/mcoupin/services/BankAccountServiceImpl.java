@@ -9,7 +9,11 @@ import com.mcoupin.repositories.OperationRepository;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.Comparator;
+import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 public class BankAccountServiceImpl implements BankAccountService {
 
@@ -52,6 +56,56 @@ public class BankAccountServiceImpl implements BankAccountService {
 
     @Override
     public String displayHistory(UUID accountId) throws AccountNotFoundException {
-        return null;
+
+        String customDateTimePattern = "dd/MM/yyyy HH:mm ";
+        DateTimeFormatter customDateFormatter = DateTimeFormatter.ofPattern(customDateTimePattern);
+        List<Operation> operations = this.operationRepository.getOperations(accountId);
+
+
+        StringBuilder sb = new StringBuilder();
+
+        sb.append("History for account ");
+        sb.append(accountId);
+        sb.append("\n");
+
+        sb.append("--------------------------------------------------------\n");
+        BigDecimal balance;
+
+        if (operations.size() == 0) {
+            balance = BigDecimal.ZERO;
+        } else {
+            balance = operations.get(operations.size() - 1).balance();
+        }
+        sb.append("Balance: ");
+        sb.append(balance);
+        sb.append("\n");
+
+        sb.append("--------------------------------------------------------\n");
+
+
+        List<Operation> orderedHistory = operations
+                .stream()
+                .sorted(Comparator.comparing(Operation::date, Comparator.reverseOrder()))
+                .collect(Collectors.toList());
+
+        for (Operation op : orderedHistory) {
+
+
+            String formatedDate = op.date().format(customDateFormatter);
+            sb.append(formatedDate);
+            sb.append("| ");
+            String formatedAmount;
+            if (op.operationType().equals(OperationType.WITHDRAWAL)) {
+                formatedAmount = "-" + op.amount();
+
+            } else {
+                formatedAmount = op.amount().toString();
+            }
+            sb.append(String.format("%-" + 13 + "s", formatedAmount));
+            sb.append("| ");
+            sb.append(op.operationType());
+            sb.append("\n");
+        }
+        return sb.toString();
     }
 }
