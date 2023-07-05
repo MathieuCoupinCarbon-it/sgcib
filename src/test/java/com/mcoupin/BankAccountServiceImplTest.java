@@ -1,11 +1,13 @@
 package com.mcoupin;
 
 import com.mcoupin.exceptions.AccountNotFoundException;
+import com.mcoupin.exceptions.InsufficientBalanceException;
 import com.mcoupin.models.Operation;
 import com.mcoupin.models.OperationType;
 import com.mcoupin.repositories.OperationRepository;
 import com.mcoupin.services.BankAccountServiceImpl;
 import com.mcoupin.services.UuidProvider;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -66,6 +68,119 @@ public class BankAccountServiceImplTest {
 
         verifyNoMoreInteractions(uuidProvider);
 
+    }
+
+    @Test
+    public void performDeposit_withNonExistingAccount() throws AccountNotFoundException {
+        // Arrange
+        UUID accountId = UUID.fromString("5d9ccd9d-7050-47ab-adcf-e0fe89b913c5");
+
+        BigDecimal depositAmount = BigDecimal.valueOf(500);
+
+        when(operationRepository.getLastOperation(accountId)).thenThrow(new AccountNotFoundException());
+
+        // Act
+        Assertions.assertThrows(AccountNotFoundException.class, () -> bankAccountService.performDeposit(accountId, depositAmount));
+
+        // Assert
+        verify(operationRepository).getLastOperation(accountId);
+        verifyNoMoreInteractions(operationRepository);
+
+        verifyNoMoreInteractions(uuidProvider);
+    }
+
+    @Test
+    public void performDeposit_withAnExistingEmptyAccount() throws AccountNotFoundException {
+        // Arrange
+        UUID accountId = UUID.fromString("5d9ccd9d-7050-47ab-adcf-e0fe89b913c5");
+
+        BigDecimal depositAmount = BigDecimal.valueOf(500);
+
+        BigDecimal expectedBalance = BigDecimal.valueOf(500);
+        UUID expectedOperationId = UUID.fromString("aa7ad925-59f1-43db-bae7-a0c2221b8a6a");
+        Operation expected = new Operation(expectedOperationId, accountId, depositAmount, expectedBalance, LocalDateTime.now(this.clock), OperationType.DEPOSIT);
+
+        when(uuidProvider.generate()).thenReturn(expectedOperationId);
+        when(operationRepository.getLastOperation(accountId)).thenReturn(Optional.empty());
+
+        // Act
+        bankAccountService.performDeposit(accountId, depositAmount);
+
+        // Assert
+        verify(operationRepository).getLastOperation(accountId);
+        verify(operationRepository).addOperation(expected);
+        verifyNoMoreInteractions(operationRepository);
+
+        verifyNoMoreInteractions(uuidProvider);
+    }
+
+    @Test
+    void performWithdrawal_withSufficientBalance() throws InsufficientBalanceException, AccountNotFoundException {
+        // Arrange
+        UUID accountId = UUID.fromString("5d9ccd9d-7050-47ab-adcf-e0fe89b913c5");
+
+        BigDecimal initialBalance = BigDecimal.valueOf(1000);
+        Operation initialOperation = new Operation(UUID.randomUUID(), accountId, initialBalance, initialBalance, LocalDateTime.now(this.clock), OperationType.DEPOSIT);
+
+        BigDecimal withdrawalAmount = BigDecimal.valueOf(500);
+
+        BigDecimal expectedBalance = BigDecimal.valueOf(500);
+        UUID expectedOperationId = UUID.fromString("aa7ad925-59f1-43db-bae7-a0c2221b8a6a");
+        Operation expected = new Operation(expectedOperationId, accountId, withdrawalAmount, expectedBalance, LocalDateTime.now(this.clock), OperationType.WITHDRAWAL);
+
+        when(uuidProvider.generate()).thenReturn(expectedOperationId);
+        when(operationRepository.getLastOperation(accountId)).thenReturn(Optional.of(initialOperation));
+
+        // Act
+        bankAccountService.performWithdrawal(accountId, withdrawalAmount);
+
+        // Assert
+        verify(operationRepository).getLastOperation(accountId);
+        verify(operationRepository).addOperation(expected);
+        verifyNoMoreInteractions(operationRepository);
+
+        verifyNoMoreInteractions(uuidProvider);
+    }
+
+    @Test
+    void performWithdrawal_withInsufficientBalance() throws InsufficientBalanceException, AccountNotFoundException {
+        // Arrange
+        UUID accountId = UUID.fromString("5d9ccd9d-7050-47ab-adcf-e0fe89b913c5");
+
+        BigDecimal initialBalance = BigDecimal.valueOf(1000);
+        Operation initialOperation = new Operation(UUID.randomUUID(), accountId, initialBalance, initialBalance, LocalDateTime.now(this.clock), OperationType.DEPOSIT);
+
+        BigDecimal withdrawalAmount = BigDecimal.valueOf(1500);
+
+        when(operationRepository.getLastOperation(accountId)).thenReturn(Optional.of(initialOperation));
+
+        // Act
+        Assertions.assertThrows(InsufficientBalanceException.class, () -> bankAccountService.performWithdrawal(accountId, withdrawalAmount));
+
+        // Assert
+        verify(operationRepository).getLastOperation(accountId);
+        verifyNoMoreInteractions(operationRepository);
+
+        verifyNoMoreInteractions(uuidProvider);
+    }
+
+    @Test
+    void performWithdrawal_withNonExistingAccount() throws InsufficientBalanceException, AccountNotFoundException {
+        // Arrange
+        UUID accountId = UUID.fromString("5d9ccd9d-7050-47ab-adcf-e0fe89b913c5");
+
+        BigDecimal withdrawalAmount = BigDecimal.valueOf(500);
+
+        when(operationRepository.getLastOperation(accountId)).thenThrow(new AccountNotFoundException());
+
+        // Act
+        Assertions.assertThrows(AccountNotFoundException.class, () -> bankAccountService.performWithdrawal(accountId, withdrawalAmount));
+
+        // Assert
+        verify(operationRepository).getLastOperation(accountId);
+        verifyNoMoreInteractions(operationRepository);
+
+        verifyNoMoreInteractions(uuidProvider);
     }
 
 }

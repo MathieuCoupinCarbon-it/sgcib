@@ -1,7 +1,7 @@
 package com.mcoupin.services;
 
 import com.mcoupin.exceptions.AccountNotFoundException;
-import com.mcoupin.exceptions.InsuficientBalanceException;
+import com.mcoupin.exceptions.InsufficientBalanceException;
 import com.mcoupin.models.Operation;
 import com.mcoupin.models.OperationType;
 import com.mcoupin.repositories.OperationRepository;
@@ -37,8 +37,17 @@ public class BankAccountServiceImpl implements BankAccountService {
     }
 
     @Override
-    public void performWithdrawal(UUID accountId, BigDecimal amount) throws AccountNotFoundException, InsuficientBalanceException {
+    public void performWithdrawal(UUID accountId, BigDecimal amount) throws InsufficientBalanceException, AccountNotFoundException {
+        BigDecimal balance = this.operationRepository.getLastOperation(accountId).map(Operation::balance).orElse(BigDecimal.ZERO);
 
+        BigDecimal newBalance = balance.subtract(amount);
+
+        if (newBalance.compareTo(BigDecimal.ZERO) == -1)
+            throw new InsufficientBalanceException();
+
+        Operation operation = new Operation(uuidProvider.generate(), accountId, amount, newBalance, LocalDateTime.now(this.clock), OperationType.WITHDRAWAL);
+
+        this.operationRepository.addOperation(operation);
     }
 
     @Override
