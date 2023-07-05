@@ -7,6 +7,7 @@ import com.mcoupin.models.OperationType;
 import com.mcoupin.repositories.OperationRepository;
 
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -14,9 +15,13 @@ public class BankAccountServiceImpl implements BankAccountService {
 
 
     private final OperationRepository operationRepository;
+    private final Clock clock;
+    private final UuidProvider uuidProvider;
 
-    public BankAccountServiceImpl(OperationRepository operationRepository) {
+    public BankAccountServiceImpl(OperationRepository operationRepository, Clock clock, UuidProvider uuidProvider) {
         this.operationRepository = operationRepository;
+        this.clock = clock;
+        this.uuidProvider = uuidProvider;
     }
 
 
@@ -26,7 +31,7 @@ public class BankAccountServiceImpl implements BankAccountService {
 
         BigDecimal newBalance = balance.add(amount);
 
-        Operation operation = new Operation(UUID.randomUUID(), accountId, amount, newBalance, LocalDateTime.now(), OperationType.DEPOSIT);
+        Operation operation = new Operation(uuidProvider.generate(), accountId, amount, newBalance, LocalDateTime.now(this.clock), OperationType.DEPOSIT);
 
         this.operationRepository.addOperation(operation);
     }
